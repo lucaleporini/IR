@@ -6,9 +6,9 @@ import os
 
 
 if __name__ == '__main__':
-    input_folder = 'boardgames-temp'
-    game_file = 'bgg/data/boardgames.json'
-    out_folder = 'boardgames-temp/result'
+    input_folder = 'data/boardgames-temp'
+    game_file = 'data/boardgames.json'
+    out_folder = 'data/boardgames-data'
     chunk = 200
     with open(game_file, 'r') as in_file:
         games = list(json.load(in_file).items())
@@ -37,24 +37,22 @@ if __name__ == '__main__':
                 if id_game in files:
                     id_games.append((id_game, name_game))
                     # load json file
-                    with open('boardgames-temp/{}.json'.format(id_game), 'r', encoding="utf-8") as f:
+                    with open(input_folder+'/{}.json'.format(id_game), 'r', encoding="utf-8") as f:
                         json_game = json.load(f)
                     if bgg_result is None:
                         bgg_result = json_game
                         bgg_result["items"]["item"] = [json_game["items"]["item"]]
                     else:
                         bgg_result["items"]["item"].append(json_game["items"]["item"])
-
-
                 else:
                     blacklist.append(id_game)
         chunk_count += 1
         print("BLACKLIST:", len(blacklist))
 
-    with open('boardgames-temp/result/174430161936_200.json', 'r', encoding="utf-8") as f:
-        json_chunk = json.load(f)
-    bgg_result["items"]["item"] += json_chunk["items"]["item"]
-    id_games += chunks[0]
+    # with open('boardgames-temp/result/174430161936_200.json', 'r', encoding="utf-8") as f:
+    #     json_chunk = json.load(f)
+    # bgg_result["items"]["item"] += json_chunk["items"]["item"]
+    # id_games += chunks[0]
 
     print(len(bgg_result["items"]["item"]))
     print(len(id_games))
@@ -65,6 +63,6 @@ if __name__ == '__main__':
         json.dump(bgg_result, out)
     with open(os.sep.join([out_folder, "bgg-data-index.json"]), 'w') as log:
         json.dump({id: name for id, name in id_games}, log)
-    with open(os.sep.join([out_folder, "bgg-blacklist.tsv"]), 'w') as log:
+    with open(os.sep.join([out_folder, "bgg-data-blacklist.tsv"]), 'w') as log:
         log.write("\t".join(blacklist))
 
