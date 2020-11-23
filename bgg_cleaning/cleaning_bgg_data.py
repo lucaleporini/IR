@@ -1,11 +1,12 @@
 import json
 
 if __name__ == '__main__':
-    input_folder = '../bgg_download/data/boardgames-data'
-    with open(input_folder+'/bgg-data.json', 'r', encoding="utf-8") as f:
+    inout_folder = '../bgg_download/data'
+    with open(inout_folder+'/bgg-data.json', 'r', encoding="utf-8") as f:
         data = json.load(f)
 
     count_game = 0
+    result = {}
     data["items"] = data["items"]["item"]
     for data_game in data["items"]:
         count_game += 1
@@ -95,10 +96,6 @@ if __name__ == '__main__':
                 link_item["type"] = link_item.pop('@type')
                 link_item["value"] = link_item.pop('@value')
 
-        # per il campo marketplacelisting possono esserci giochi con:
-        # - dict: un solo elemento a dizionario
-        # - campo "listing" come array di elementi
-        # - campo "listing" con un solo elemento
         if "marketplacelistings" in data_game.keys():
             if "listing" not in data_game["marketplacelistings"].keys():
                 data_game["marketplacelistings"]["condition"] = data_game["marketplacelistings"]["condition"]["@value"]
@@ -190,7 +187,9 @@ if __name__ == '__main__':
                 rank_item["type"] = rank_item.pop('@type')
                 rank_item["value"] = rank_item.pop('@value')
 
+        result[data_game["id"]] = data_game
+
         print("REMAINING ", len(data["items"]) - count_game, "GAMES")
 
-    with open(input_folder+'/bgg-data-cleaned.json', 'w', encoding="utf-8") as out:
-        json.dump(data, out)
+    with open(inout_folder+'/bgg-data-cleaned.json', 'w', encoding="utf-8") as out:
+        json.dump(result, out)

@@ -1,101 +1,23 @@
 import re
+import spacy
+import csv
+from nltk.corpus import wordnet
+import vaderSentiment.vaderSentiment as vader
+from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
+# Loading Spacy Model
+nlp = spacy.load("en_core_web_lg")
+sentiment_analyzer = SentimentIntensityAnalyzer()
 
-'''def detect_noun(token):
-    nouns = []
-    children = list(token.children)
-    negation = False
-    for child in children:
-        if child.pos == NOUN or child.pos == PROPN:
-            nouns.append(child.text)
-            print("CHILD", child.text, child.pos_, child.dep_)
-            for child_of_child in list(child.children):
-                print("CHILD OF CHILD", child_of_child.text, child_of_child.pos_, child_of_child.dep_)
-                if child_of_child.pos == PROPN and child_of_child.dep == conj:
-                    nouns.append(child_of_child .text)
-    return nouns
+# Loading SentiWordNet
+file = open("SentiWordNetDict.txt", newline="\n")
+filereader = csv.reader(file, delimiter=",")
+next(filereader)
 
-
-# rileva gli aggettivi e aggettivi con congiunzione
-def detect_adj_conj(token):
-    adj_conj = []
-    children = list(token.children)
-    for child in children:
-        # add to result couple NOUN + ADJ
-        if child.pos == ADJ:
-            adj_conj.append(child.text.lower())
-            for child_of_child in list(child.children):
-                # add to result couple NOUN + ADJ conjution (es. black and [white] [game])
-                if child_of_child.pos == ADJ and child_of_child.dep == conj:
-                    adj_conj.append(child_of_child.text.lower())
-    return adj_conj
-
-
-def detect_noun_adj(doc):
-    result = []
-    for token in doc:
-        print(token.text, token.pos_, token.dep_, token.tag_, token.head)
-        children = list(token.children)
-        print("CHILDREN:", children)
-        if token.pos == NOUN:
-            # result += [(token.text.lower(), adj, False) for adj in detect_adj_conj(token)]
-
-            for child in token.children:
-                # add to result couple NOUN + ADJ
-                if child.pos == ADJ:
-                    result.append((token.text.lower(), child.text.lower(), False))
-                    for child_of_child in child.children:
-                        # add to result couple NOUN + ADJ conjution (es. black and [white] [game])
-                        if child_of_child.pos == ADJ and child_of_child.dep == conj:
-                            result.append((token.text, child_of_child.text.lower(), False))
-
-        if token.pos == AUX or token.pos == VERB:
-            # list_adj_conj = detect_adj_conj(token) --> determina gli aggettivo nel predicato o predicato nominale
-            # list_noun = detect_noun(token) -> determina i sostantivi o soggetto da associare l'aggettivo
-            # result += [(n, adj) for n in detect_noun(token) for adj in detect_adj_conj(token)]
-
-            nouns = []
-            adjs_neg = []
-            verb_negation = False
-            for child in token.children:
-
-                if child.pos == NOUN or child.pos == PROPN:
-                    nouns.append(child.text)
-                    for child_of_child in child.children:
-                        if child_of_child.pos == PROPN and child_of_child.dep == conj:
-                            nouns.append(child_of_child.text)
-
-                # add to result couple NOUN + ADJ
-                if child.pos == ADJ:
-                    child_negation = False
-                    for child_of_child in child.children:
-                        # controllo se l'aggettivo individuato presenta una congiunzione con un altro aggettivo
-                        if child_of_child.pos == ADJ and child_of_child.dep == conj:
-                            child_of_child_negation = False
-                            # controllo l'aggettivo in congiunzione presenta una negazione
-                            for child_of_child_of_child in child_of_child.children:
-                                if child_of_child_of_child.pos == PART and child_of_child_of_child.dep == neg:
-                                    child_of_child_negation = True
-                            adjs_neg.append((child_of_child.text.lower(), child_of_child_negation))
-
-                        if child_of_child.pos == PART and child_of_child.dep == neg:
-                            child_negation = True
-                    adjs_neg.append((child.text.lower(), child_negation))
-
-                if child.pos == PART and child.dep == neg:
-                    print(adjs_neg)
-                    verb_negation = True
-
-            if verb_negation:
-                print([(noun, adj, n) for noun in nouns for adj, n in adjs_neg])
-                print([(noun, adj, not n) for noun in nouns for adj, n in adjs_neg])
-                result += [(noun, adj, not n) for noun in nouns for adj, n in adjs_neg]
-            else:
-                result += [(noun, adj, n) for noun in nouns for adj, n in adjs_neg]
-        print("")
-    # to visualize the dependency
-    # spacy.displacy.serve(doc, style='dep')
-    return result'''
+swn_dict = {}
+for row in filereader:
+    if row:
+        swn_dict[(row[0], row[1])] = (float(row[2]), float(row[3]))
 
 
 def pre_processing(sentence):
@@ -138,8 +60,6 @@ def extract_aspect_opinion(sentence):
                     for noun_child in noun.children:
                         if noun_child.dep_ == "neg":
                             shifted = True
-                        '''if noun_child.dep_ == "compound":
-                            noun_text = noun_child.text + " " + noun_text'''
 
                     # check shifting in verb/aux
                     if noun.dep_ in ["attr", "dobj"] and noun.head.pos_ in ["AUX", "VERB"]:
@@ -147,14 +67,6 @@ def extract_aspect_opinion(sentence):
                         for verb_child in noun_verb.children:
                             if verb_child.dep_ == "neg":
                                 shifted = True
-
-                            # add couple (subject, adj_to_object_complement) replacing subject with obj complement
-                            '''if verb_child.dep_ == "nsubj":
-                                verb_subj = verb_child.text
-                                addAspectOpinion(verb_subj, (token.text, shifted, modifier))
-                                for subj_child in verb_subj.children:
-                                    if subj_child.dep_ == "conj" and subj_child.pos_ in ["NOUN", "PROPN"]:
-                                        addAspectOpinion(subj_child.text, (token.text, shifted, modifier))'''
 
                     addAspectOpinion(noun_text, (token.text, shifted, modifier))
 
@@ -176,9 +88,13 @@ def extract_aspect_opinion(sentence):
                             addAspectOpinion(noun_text, (adj_child.text, shifted, modifier))
 
             # nuon -> verb --> adj with dep_ = acomp
-            if token.dep_ in ["acomp", "pobj", "attr"]:
+            if token.dep_ in ["acomp", "pobj", "attr", "oprd"]:
                 modifier = ""
                 shifted = False
+
+                for adj_child in token.children:
+                    if adj_child.dep_ == "advmod":
+                        modifier = adj_child.text
 
                 verb = token.head
                 while (verb.pos_ != "VERB" and verb.pos_ != "AUX") and verb.dep_ == "conj":
@@ -219,3 +135,38 @@ def extract_aspect_opinion(sentence):
                                 addAspectOpinion(noun_text, (adj_child.text, shifted, modifier))
 
     return dict_result
+
+
+def swn_polarity(word):
+    synset = wordnet.synsets(word)
+    if len(synset) == 0:
+        return 0
+    swn_scores = []
+    for syn in synset:
+        if syn.pos() in ["a", "s"]:
+            # print(syn.pos(), str(syn.offset()).zfill(8), swn_dict[("a", str(syn.offset()).zfill(8))])
+            sysnet_polarity = swn_dict[("a", str(syn.offset()).zfill(8))]
+            if sysnet_polarity[0] > sysnet_polarity[1]:
+                swn_scores.append(sysnet_polarity[0])
+            elif sysnet_polarity[0] < sysnet_polarity[1]:
+                swn_scores.append(-sysnet_polarity[1])
+    if len(swn_scores) == 0:
+        return 0
+    return sum(swn_scores) / len(swn_scores)
+
+
+def get_polarity(opinion):
+    adj, shifted, mod = opinion
+    phrase = ("not " if shifted else "") + mod + " " + adj
+    vader_score = sentiment_analyzer.polarity_scores(phrase)
+
+    if vader_score["compound"] != 0:
+        return vader_score["compound"]
+
+    swn_score = swn_polarity(opinion[0])
+    if mod and not -0.2 < swn_score < 0.2:
+        if vader.BOOSTER_DICT.get(opinion[1]) is not None:
+            swn_score += vader.BOOSTER_DICT[opinion[1]] if swn_score > 0 else -vader.BOOSTER_DICT[opinion[1]]
+        swn_score = 1 if swn_score > 1 else -1 if swn_score < -1 else swn_score
+    swn_score = -swn_score if shifted else swn_score
+    return swn_score
