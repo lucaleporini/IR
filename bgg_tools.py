@@ -4,8 +4,9 @@ import json
 import pprint
 import pandas as pd
 import os
+import matplotlib.pyplot as plt
+import numpy as np
 from spacy_langdetect import LanguageDetector
-import mining_tools as min_t
 
 
 # Giochi presenti nelle top/hot list degli utenti ma non presenti nel dataset di giochi
@@ -35,30 +36,32 @@ def get_list_users_w_top_list():
 def get_game_list_from_users(users):
     with open('bgg_download/data/bgg-data-cleaned.json', 'r', encoding="utf-8") as f:
         data = json.load(f)
-    user_game_list = []
+    user_game_list = set()
     for user in users.values():
         if "top" in user.keys():
-            user_game_list += [g["id"] for g in user["top"]]
+            user_game_list.update([g["id"] for g in user["top"]])
         if "hot" in user.keys():
-            user_game_list += [g["id"] for g in user["hot"]]
+            user_game_list.update([g["id"] for g in user["hot"]])
     games = {}
-    for id_game in set(user_game_list):
+    for id_game in user_game_list:
         if id_game in data.keys():
             games[id_game] = data[id_game]
         else:
             games_blacklist.append(id_game)
-    # games = {id_game: data[id_game] for id_game in set(user_game_list) if id_game in data.keys()}
+
     print("SELECTED GAMES:", len(games),
-          "-- ( TOT:", len(set(user_game_list)), ", REMOVED:", len(set(user_game_list))-len(games),")")
+          "-- ( TOT:", len(user_game_list), ", REMOVED:", len(user_game_list)-len(games),")")
     return games
 
 
-'''DA SISTEMARE'''
-def pre_processing(users, games, max_comments):
+def games_processing(users_categories, games, max_comments):
+    c = 0
     for game in games.values():
-        num_comments = max_comments if len(game["comments"]) >= 500 else len(game["comments"])
-        game["comments"] = sorted([comment for comment in game["comments"] if comment["username"] in users.keys()],
+        num_comments = max_comments if len(game["comments"]) >= max_comments else len(game["comments"])
+        game["comments"] = sorted([comment for comment in game["comments"] if comment["username"] in users_categories.keys()],
                                   key=lambda c: len(c["value"]), reverse=True)[:num_comments]
+        c += len(game["comments"])
+    print("TOTAL COMMENTS: ", c)
 
 
 def create_categories_game_dict():
@@ -92,8 +95,9 @@ def select_k_categories(games, category_params):
                     categories[link["id"]] = {"name": link["value"], "freq": 1}
                 else:
                     categories[link["id"]]["freq"] += 1
-    selected_categories = [(id_cat, desc["name"]) for id_cat, desc in sorted(categories.items(), key=lambda x: x[1]["freq"], reverse=True)][:category_params["n"]]
-    pprint.pprint(selected_categories)
+    selected_categories = [(id_cat, desc["name"]) for id_cat, desc in sorted(categories.items(),
+                                                                             key=lambda x: x[1]["freq"],
+                                                                             reverse=True)][:category_params["k"]]
     return selected_categories
 
 
@@ -113,13 +117,10 @@ def user_category_vector(user, games, category_type, selected_categories):
                     user_category_list[link["id"]] += 1
 
     result = [(cat, val/len(user_game_list)) for cat, val in user_category_list.items()]
-    # len(user_game_list)
-    # sum(list(user_game_category_list.values()))
-    # print(user["id"], result)
     return result
 
 
-def get_dataframe_users_categories(users, games, category_params, category_ids, max_users):
+def get_users_categories_dict(users, games, category_params, category_ids, max_users):
     users_category_vector = {id_cat: [] for id_cat in category_ids}
     users_category_vector["username"] = []
     for username in users.keys():
@@ -130,14 +131,18 @@ def get_dataframe_users_categories(users, games, category_params, category_ids, 
 
     df = pd.DataFrame(users_category_vector)
 
+    cat_users_favorite = {}
+    result = {}
     for id_cat in category_ids:
         cat_df = df[[id_cat, "username"]].sort_values(id_cat, ascending=False)[:max_users]
-        print("max accuracy", cat_df.head(1)[id_cat])
-        print("min precision", cat_df.tail(1)[id_cat])
-
-    # to list
-    # create dict {id_cat: [list of users] to return
-
+        cat_users_favorite[id_cat] = {"max_value": cat_df.head(1)[id_cat].iloc[0],
+                                      "min_value": cat_df.tail(1)[id_cat].iloc[0]}
+        for username in cat_df["username"].to_list():
+            if username not in result.keys():
+                result[username] = [id_cat]
+            else:
+                result[username].append(id_cat)
+    return result, cat_users_favorite
 
 
 lang_params = {
@@ -170,3 +175,40 @@ def lang_distribution():
 
     with open("bgg_result/games_lang_distr.json", 'w') as out:
         json.dump(game_lang_dict, out)
+
+
+def plotting_categories_target_aspects(result, categories, category_type):
+
+    for target_asp in result.keys():
+        neg_values = [scores["NEG"] for id_cat, scores in result[target_asp].items()]
+        pos_values = [scores["POS"] for id_cat, scores in result[target_asp].items()]
+        labels = [categories[category_type][id_cat] for id_cat in result[target_asp]]
+
+        N = len(neg_values)
+        ind = np.arange(N)
+        width_bars = 0.27
+
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+
+        rects1 = ax.bar(ind, neg_values, width_bars, color='r')
+        rects2 = ax.bar(ind + width_bars, pos_values, width_bars, color='g')
+
+        ax.set_title(target_asp)
+        ax.set_ylabel('Opinions')
+        ax.set_xlabel('BGG ' + category_type)
+        ax.set_xticks(ind + width_bars)
+        ax.set_xticklabels(labels)
+        ax.legend((rects1[0], rects2[0]), ('NEG', 'POS'))
+
+        def autolabel(rects):
+            for rect in rects:
+                h = rect.get_height()
+                ax.text(rect.get_x() + rect.get_width() / 2., 1.05 * h, '%d' % int(h),
+                        ha='center', va='bottom')
+
+        autolabel(rects1)
+        autolabel(rects2)
+
+        plt.xticks(rotation=90)
+        plt.show()

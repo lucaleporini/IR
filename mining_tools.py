@@ -159,6 +159,7 @@ def get_polarity(opinion):
     adj, shifted, mod = opinion
     phrase = ("not " if shifted else "") + mod + " " + adj
     vader_score = sentiment_analyzer.polarity_scores(phrase)
+    # return vader_score["compound"]
 
     if vader_score["compound"] != 0:
         return vader_score["compound"]

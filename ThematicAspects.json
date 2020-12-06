@@ -1,0 +1,71 @@
+{
+
+  "skill": [
+    "skill",
+    "ability",
+    "strategy",
+    "trick",
+    "tactic",
+    "strength",
+    "capability",
+    "bluffing"
+  ],
+
+  "setting": [
+    "setting",
+    "scenario",
+    "desing",
+    "setup",
+    "installment",
+    "environment",
+    "deployment",
+    "implementation"
+  ],
+
+  "complexity": [
+    "complexity",
+    "rule",
+    "rule book",
+    "rulebook",
+    "rulebooks",
+    "ruleset",
+    "difficulty"
+  ],
+
+  "longevity": [
+    "longevity",
+    "replayability",
+    "replay value"
+  ],
+
+  "luck": [
+    "luck",
+    "luck factor",
+    "fortune",
+    "chance",
+    "randomness",
+    "spin",
+    "shuffling"
+  ],
+
+  "time": [
+    "time",
+    "timing",
+    "playtime",
+    "hour",
+    "turn",
+    "round",
+    "ride",
+    "speed",
+    "pace",
+    "minute"
+  ],
+
+  "playability": [
+    "player",
+    "playability",
+    "player interaction",
+    "playing"
+  ]
+
+}
