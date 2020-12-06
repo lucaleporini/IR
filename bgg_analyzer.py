@@ -1,122 +1,76 @@
-import spacy
-import mining_tools as mt
+import mining_tools as min_t
+import bgg_tools as bgg_t
 import json
-import pprint
-import matplotlib.pyplot as plt
-from spacy_langdetect import LanguageDetector
+from nltk.stem import WordNetLemmatizer
 
-
-params = {
-    "lang": "en",
-    "lang_score": 0.70,
-    "min_len": 10
+category_params = {
+    "type": "boardgamecategory",
+    "k": 10
 }
+max_comments_game = 500
+max_users_for_category = 500
+
+lemmatizer = WordNetLemmatizer()
+nlp = min_t.nlp
+
 
 if __name__ == '__main__':
-    print("loading dataset..")
-    with open('bgg_download/data/boardgames-data/bgg-data-cleaned.json', 'r', encoding="utf-8") as f:
-        data = json.load(f)
-    print("dataset loaded")
 
-    print("loading model...")
-    nlp = spacy.load("en_core_web_lg")
-    nlp.add_pipe(LanguageDetector(), name='language_detector', last=True)
-    print("model loaded!")
+    users = bgg_t.get_list_users_w_top_list()  # dict {username: user}
+    games = bgg_t.get_game_list_from_users(users)  # dict {id_game: game}
 
-    # GENERALE
-    empty_count = 0
-    comment_w_rating = 0
-    total_rating = 0.0
-    neg_count = 0
-    neu_count = 0
-    pos_count = 0
-    en_comments = 0
-    comment_len = 0
+    selected_categories = bgg_t.select_k_categories(games, category_params)  # array [(id_cat, name)]
+    selected_categories_ids = [id for id, name in selected_categories]  # [id_cat]
 
-    # ANALISI
-    comment_count = 0
-    empty_asp_opn = 0
-    pos_comments_count = 0
-    neg_comments_count = 0
+    # users_categories = {username: [list of cat selected]
+    # users_categories_values = {id_cat: {"max_value": xxx, "min_value": xxx}
+    users_categories, users_categories_values = bgg_t.get_users_categories_dict(users, games, category_params,
+                                                                                selected_categories_ids,
+                                                                                max_users_for_category)
 
-    game_asp_opn_dict = {"neg_comments": {}, "pos_comments": {}}
-    game_lang_dict = {}
-    index_game = 20
-    # for i in range(0, 20):
-    for com in data["items"][index_game]["comments"]:
-        # comment = data["items"][0]["comments"][i]
-        comment = nlp(mt.pre_processing(com["value"].lower()))
-        comment_lang, comment_lang_score = comment._.language.values()
-        if comment_lang not in game_lang_dict.keys():
-            game_lang_dict[comment_lang] = 1
-        else:
-            game_lang_dict[comment_lang] += 1
-        if not com["rating"] == "N/A" and comment_lang == params["lang"] and comment_lang_score > params["lang_score"] and len(comment) > params["min_len"]:
-            asp_opn_dict = mt.extract_aspect_opinion(comment)
-            if asp_opn_dict.keys():
-                comment_count += 1
-                pol_comment = "neg_comments" if float(com["rating"]) < 6 else "pos_comments"
+    # all comments from users by selecting max_comments_game ordered by decreasing length
+    bgg_t.games_processing(users_categories, games, max_comments_game)
 
-                # ONLY FOR STATS
-                if pol_comment == "neg_comments":
-                    pos_comments_count += 1
-                else:
-                    neg_comments_count += 1
+    count_game = 0
+    ao_polarity_category_dict = {id_cat: {} for id_cat in selected_categories_ids}
+    for game in games.values():
+        count_game += 1
+        for comment in game["comments"]:
+            spacy_comment = nlp(min_t.pre_processing(comment["value"].lower()))
 
-                for aspect, opinion in asp_opn_dict.items():
-                    if aspect not in game_asp_opn_dict.keys():
-                        game_asp_opn_dict[pol_comment][aspect] = opinion
+            sentences = []
+            start = 0
+            for token in spacy_comment:
+                if token.sent_start:
+                    sentences.append(spacy_comment[start:token.i])
+                    start = token.i
+                if token.i == len(spacy_comment) - 1:
+                    sentences.append(spacy_comment[start:(token.i + 1)])
+
+            comment_asp_opn_dict = {}
+            for sentence in sentences:
+                sentence_asp_opn_dict = min_t.extract_aspect_opinion(spacy_comment)
+                for k, v in sentence_asp_opn_dict.items():
+                    lemma_k = lemmatizer.lemmatize(k)
+                    if comment_asp_opn_dict.get(lemma_k) is None:
+                        comment_asp_opn_dict[lemma_k] = v
                     else:
-                        game_asp_opn_dict[pol_comment][aspect] += opinion
-            else:
-                empty_asp_opn += 1
+                        comment_asp_opn_dict[lemma_k] = set(list(comment_asp_opn_dict[lemma_k]) + v)
 
-        if comment_lang == params["lang"] and comment_lang_score > params["lang_score"]:
-            en_comments += 1
-        if len(comment) > params["min_len"]:
-            comment_len += 1
+            if len(comment_asp_opn_dict) > 0:
+                for aspect, opinions in comment_asp_opn_dict.items():
+                    for opinion in opinions:
+                        polarity = min_t.get_polarity(opinion)
+                        for user_cat in users_categories[comment["username"]]:
+                            if aspect not in ao_polarity_category_dict[user_cat].keys():
+                                ao_polarity_category_dict[user_cat][aspect] = [(opinion, polarity)]
+                            else:
+                                ao_polarity_category_dict[user_cat][aspect].append((opinion, polarity))
 
-        asp_opn_dict = mt.extract_aspect_opinion(comment)
-        if not asp_opn_dict.keys():
-            empty_count += 1
-        if not com["rating"] == "N/A":
-            rating = float(com["rating"])
-            total_rating += rating
-            comment_w_rating += 1
-            if rating < 6:
-                neg_count += 1
-            else:
-                pos_count += 1
-    
-    totalcomments = len(data["items"][index_game]["comments"])
-    print("GENERAL INFO ABOUT GAME:", data["items"][index_game]["id"])
-    print("Total comments:", totalcomments)
-    print("Total ENGLISH comments:", en_comments, en_comments/totalcomments*100)
-    print("Total NOT ENGLISH comments:", totalcomments-en_comments, (totalcomments-en_comments)/totalcomments*100)
-    print("COMMENT with LENGHT > "+str(params["min_len"])+":", comment_len)
-    print()
+        print("REMAINING GAMES ", len(games.values())-count_game)
 
-    print("EMPTY COMMENTS:", empty_count, empty_count/totalcomments*100)
-    print("VALID COMMENTS:", totalcomments-empty_count, (totalcomments - empty_count)/totalcomments*100)
-    print()
-
-    print("TOTAL COMMENT WITH RATING:", comment_w_rating)
-    print("RATING MEDIO:", total_rating/comment_w_rating)
-    print("NEGATIVE RATING (< 6):", neg_count, neg_count/comment_w_rating*100)
-    print("POSITIVE RATING (>= 6):", pos_count, pos_count/comment_w_rating*100)
-    print()
-
-    print("PLOTTING GAME LANG DICT")
-    pprint.pprint(game_lang_dict)
-    plt.plot(game_lang_dict.keys(), game_lang_dict.values())
-    plt.show()
-    print()
-
-    print("TOTAL COMMENTS ANALYSED:", comment_count)
-    print("TOTAL COMMENTS with EMPTY AO DICT:", empty_asp_opn)
-    print("TOTAL POSITIVE COMMENTS (rating >= 6):", pos_comments_count)
-    print("TOTAL NEGATIVE COMMENTS (rating < 6)", neg_comments_count)
-    pprint.pprint(game_asp_opn_dict)
-
-
+    with open("bgg_result/aop_"+category_params["type"]+"_"+
+              str(category_params["k"])+"_"+
+              str(max_users_for_category)+"_"+str(max_comments_game)+".json", "w") as out_file:
+        json.dump(ao_polarity_category_dict, out_file)
 

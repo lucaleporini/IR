@@ -1,7 +1,6 @@
 import spacy
 import mining_tools as mt
 import json
-import pprint
 import pandas as pd
 import os
 import matplotlib.pyplot as plt
@@ -78,9 +77,6 @@ def create_categories_game_dict():
                 categories[link["type"]][link["id"]] = {"name": link["value"], "freq": 1}
             else:
                 categories[link["type"]][link["id"]]["freq"] += 1
-
-    # pprint.pprint([(k, len(categories_id_name[k].keys())) for k in categories_id_name.keys()])
-    # pprint.pprint(categories_id_name["boardgamecategory"])
 
     with open("bgg_download/data/bgg-data-games-categories.json", 'w') as out:
         json.dump(categories, out)

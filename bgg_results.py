@@ -1,8 +1,5 @@
 import json
 import pprint
-import numpy as np
-import matplotlib.pyplot as plt
-import bgg_tools as bgg_t
 
 neu_pol_threshold = 0.2
 category_type = "boardgamecategory"
