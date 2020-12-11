@@ -24,7 +24,7 @@ if __name__ == '__main__':
 
     # users_categories = {username: [list of cat selected]
     # users_categories_values = {id_cat: {"max_value": xxx, "min_value": xxx}
-    users_categories, users_categories_values = bgg_t.get_users_categories_dict(users, games, category_params,
+    users_categories, users_categories_values = bgg_t.users_categorization(users, games, category_params,
                                                                                 selected_categories_ids,
                                                                                 max_users_for_category)
 

@@ -116,7 +116,7 @@ def user_category_vector(user, games, category_type, selected_categories):
     return result
 
 
-def get_users_categories_dict(users, games, category_params, category_ids, max_users):
+def users_categorization(users, games, category_params, category_ids, max_users):
     users_category_vector = {id_cat: [] for id_cat in category_ids}
     users_category_vector["username"] = []
     for username in users.keys():
